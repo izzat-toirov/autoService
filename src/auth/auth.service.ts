@@ -13,6 +13,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../../generated/prisma';
 import * as bcrypt from 'bcrypt';
 import { Response } from 'express';
+import { ResponseFields, Tokens } from '../common/types';
 
 @Injectable()
 export class AuthService {
@@ -59,7 +60,7 @@ export class AuthService {
     };
   }
 
-  async signIn(signInUserDto: SignInUserDto, res: Response) {
+  async signIn(signInUserDto: SignInUserDto, res: Response): Promise<ResponseFields> {
     const { email, password } = signInUserDto;
     const user = await this.prismaService.user.findUnique({ where: { email } });
 
@@ -94,68 +95,63 @@ export class AuthService {
     };
   }
 
-  async signOut(refreshToken: string, res: Response) {
-    let userData: any;
-    try {
-      userData = await this.jwtService.verify(refreshToken, {
-        secret: process.env.REFRESH_TOKEN_KEY,
-      });
-    } catch (error) {
-      throw new BadRequestException('Refresh token noto‘g‘ri yoki eskirgan');
+  async signOut(userId: number, res: Response) {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user || !user.hashedRefreshToken) {
+      throw new ForbiddenException('User topilmadi yoki token yoq');
     }
 
-    await this.usersService.uptadeRefreshToken(userData.id, "");
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: { hashedRefreshToken: null },
+    },);
+
+    if (!user) {
+      throw new ForbiddenException("access deleted")
+    }
     res.clearCookie('refreshToken');
 
-    return {
-      message: 'Foydalanuvchi tizimdan chiqdi',
-    };
+    return { message: 'Foydalanuvchi tizimdan chiqdi', userId };
   }
 
-  async refreshToken(
+
+  async refresh_token(
     userId: number,
-    refreshTokenFromCookie: string,
-    res: Response,
-  ) {
-    const decodedToken = this.jwtService.decode(refreshTokenFromCookie) as {
-      id: number;
-      email: string;
-    };
+    refreshToken: string,
+    res: Response
+  ): Promise<ResponseFields> {
+    const user = await this.prismaService.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user || !user.hashedRefreshToken || !user.hashedRefreshToken)
+      throw new UnauthorizedException("User topilmadi");
 
-    if (!decodedToken || userId !== decodedToken.id) {
-      throw new ForbiddenException('Ruxsat etilmagan');
-    }
-
-    const user = await this.usersService.findOne(userId);
-    if (!user || !user.hashedRefreshToken) {
-      throw new NotAcceptableException('Foydalanuvchi topilmadi');
-    }
-
-    const tokenMatch = await bcrypt.compare(
-      refreshTokenFromCookie,
-      user.hashedRefreshToken,
+    const rtMatches = await bcrypt.compare(
+      refreshToken,
+      user.hashedRefreshToken
     );
 
-    if (!tokenMatch) {
-      throw new ForbiddenException('Refresh token mos emas');
-    }
+    if (!rtMatches) throw new UnauthorizedException("Refresh token noto‘g‘ri");
 
-    const { accessToken, refreshToken } = await this.generateTokens(user);
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 12);
+    const tokens: Tokens = await this.generateTokens(user);
+    const hashedRefreshToken = await bcrypt.hash(tokens.refreshToken, 7);
+    await this.prismaService.user.update({
+      where: { id: userId },
+      data: { hashedRefreshToken },
+    });
 
-    await this.usersService.uptadeRefreshToken(user.id, hashedRefreshToken);
-
-    res.cookie('refreshToken', refreshToken, {
-      maxAge: Number(process.env.COOKIE_TIME),
+    res.cookie("refreshToken", tokens.refreshToken, {
+      maxAge: +process.env.COOKIE_TIME!,
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
     });
 
     return {
-      message: 'Token yangilandi',
+      message: "tokenlar yangilandi",
       userId: user.id,
-      accessToken,
+      accessToken: tokens.accessToken,
     };
   }
 }

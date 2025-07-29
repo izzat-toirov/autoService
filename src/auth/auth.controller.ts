@@ -2,15 +2,19 @@ import {
   Body,
   Controller,
   HttpCode,
+  HttpStatus,
   Param,
   ParseIntPipe,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto, SignInUserDto } from '../users/dto';
 import { Response } from 'express';
-import { CookieGetter } from '../decorators/cookie-getter.decorator';
+import { GetCurrentUser, GetCurrentUserId } from '../common/decorators';
+import { RefreshTokenGuard } from '../common/guards';
+import { ResponseFields } from '../common/types';
 
 @Controller('auth')
 export class AuthController {
@@ -27,26 +31,29 @@ export class AuthController {
   async signIn(
     @Body() signInUserDto: SignInUserDto,
     @Res({ passthrough: true }) res: Response,
-  ) {
+  ): Promise<ResponseFields> {
     return this.authService.signIn(signInUserDto, res);
   }
 
+  @UseGuards(RefreshTokenGuard)
   @HttpCode(200)
   @Post('signOut')
+  @HttpCode(HttpStatus.OK)
   async signOut(
-    @CookieGetter('refreshToken') refreshToken: string,
+    @GetCurrentUserId() userId: number,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.signOut(refreshToken, res);
+    return this.authService.signOut(+userId, res);
   }
 
+  @Post('refresh')
+  @UseGuards(RefreshTokenGuard)
   @HttpCode(200)
-  @Post('refresh/:id')
   async refresh(
-    @Param('id', ParseIntPipe) id: number,
-    @CookieGetter('refreshToken') refreshToken: string,
+    @GetCurrentUserId() userId: number,
+    @GetCurrentUser('refreshToken') refreshToken: string,
     @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.authService.refreshToken(id, refreshToken, res);
+  ): Promise<ResponseFields> {
+    return this.authService.refresh_token(+userId, refreshToken, res);
   }
 }
