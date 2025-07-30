@@ -5,6 +5,10 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { AdminModule } from './admin/admin.module';
 import { AdminAuthModule } from './authAdmin/auth.module';
+import { CarModule } from './car/car.module';
+import { CarHistoryModule } from './car_history/car_history.module';
+import { RegionsModule } from './regions/regions.module';
+import { DistrictModule } from './district/district.module';
 
 @Module({
   imports: [
@@ -16,7 +20,11 @@ import { AdminAuthModule } from './authAdmin/auth.module';
     UsersModule,
     AuthModule,
     AdminModule,
-    AdminAuthModule
+    AdminAuthModule,
+    CarModule,
+    CarHistoryModule,
+    RegionsModule,
+    DistrictModule
   ],
   controllers: [],
   providers: [],

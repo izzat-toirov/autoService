@@ -32,8 +32,10 @@ model User {
   role               Role    @default(USER)
   hashedRefreshToken String?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  Car         Car[]
+  Car_History Car_History[]
 
   @@map("users")
 }
@@ -46,4 +48,49 @@ model Admin {
   is_creator Boolean
 
   @@map("admin")
+}
+
+model Car {
+  id               Int    @id @default(autoincrement())
+  plate_number     Int    @db.Integer()
+  vin_number       Int    @db.Integer()
+  model            String @db.VarChar()
+  year             String @db.VarChar()
+  current_owner_id Int
+
+  current_owner User          @relation(fields: [current_owner_id], references: [id])
+  Car_History   Car_History[]
+
+  @@map("car")
+}
+
+model Car_History {
+  id       Int    @id @default(autoincrement())
+  car_id   Int
+  owner_id Int
+  buyed_at String @db.VarChar()
+  sold_at  String @db.VarChar()
+
+  car   Car  @relation(fields: [car_id], references: [id])
+  owner User @relation(fields: [owner_id], references: [id])
+
+  @@map("car_history")
+}
+
+model Regions {
+  id       Int        @id @default(autoincrement())
+  name     String     @db.VarChar(50)
+  District District[]
+
+  @@map("regions")
+}
+
+model District {
+  id        Int    @id @default(autoincrement())
+  name      String @db.VarChar(50)
+  region_id Int
+
+  region Regions @relation(fields: [region_id], references: [id])
+
+  @@map("district")
 }
